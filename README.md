@@ -1,4 +1,4 @@
-![Header](https://github.com/Moody0101-X/HEDShell/img/scr.png)
+![Header](https://github.com/Moody0101-X/HEDShell/raw/main/img/scr.png)
 
 # HEDShell
 
