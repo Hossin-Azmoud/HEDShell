@@ -1,33 +1,102 @@
-from .Shell import parse_command, shell_input, EMPTY_COMMAND, Command
-from .UtilFuncs import LoadConfig
+from .core import (
+    shell_input, 
+    EMPTY_COMMAND, 
+    HELP_FLAG,
+    Command, 
+    exit_shell, 
+    print_result, 
+    print_error, 
+    print_syntax,
+    Help, 
+    DOC
+)
+
 from .Algorithms import *
+unexpected_arg_count = (lambda : print_error("unexpected number of arguments. please try again with the right amount."))
 
-DOC = f"""{f.YELLOW}
+def hedshell_encode(args: list[str]) -> None: 
+        
+    if len(args) == 0:
+        print_syntax(encode_decode_doc[ENCODE])
+        return
 
-	Author: Hossin azmoud (Moody0101)
-	Date: 10/18/2022
-	LICENCE: MIT
-	Language: {f.CYAN}Python3.10 {f.YELLOW}
-	Descripion: A tool to hash, encode, decode text.
-	command: hash, encode, decode, help, exit
-	Usage: 
-		To encode/Decode:
-			Encode/Decode <Text> <Algorithm>
-			Encode/Decode only for help.
-		To hash:
-			Hash <Text> <Algorithm>
-			Hash only for help.
-"""
+    if len(args) < 2:
+        
+        if args[0] == HELP_FLAG:
+            print_syntax(encode_decode_doc[ENCODE])
+            return
 
-HELP = """
+        unexpected_arg_count()
+        return
 
-	To encode/Decode:
-		Encode/Decode <Text> <Algorithm>
-		Encode/Decode only for help.
-	To hash:
-		Hash <Text> <Algorithm>
-		Hash only for help.
+    text, algorithm = args[0], args[1].upper()
+    if not algorithm in encoding:
+        
+        print_error("  [ERROR] %s Algorithms was not found!" % algorithm)
+        print_syntax(encode_decode_doc[ENCODE])
+        return
 
-"""
+    fn = encoding[algorithm][ENCODE]
+    if isinstance(text, str): 
+        text = text.encode()
+    
+    print_result(fn(text).decode())
+    
 
+def hedshell_decode(args: list[str]) -> None:
+    
+    if len(args) == 0:
+        print_syntax(encode_decode_doc[DECODE])
+        return
+
+    if len(args) < 2:
+        
+        if args[0] == HELP_FLAG:
+            print_syntax(encode_decode_doc[DECODE])
+            return
+
+        unexpected_arg_count()
+        return   
+
+    text, algorithm = args[0], args[1].upper()
+    
+    if not algorithm in encoding:
+        
+        
+        print_error("  [ERROR] %s Algorithms was not found!" % algorithm)
+        print_syntax(encode_decode_doc[DECODE])
+        return
+    
+    fn = encoding[algorithm][DECODE]
+    if isinstance(text, str): 
+        text = text.encode()
+    
+    print_result(fn(text).decode())
+
+def hedshell_hash(args: list[str]) -> None:
+    
+    if len(args) == 0:
+        print_syntax(hashing_doc)
+        return
+
+    if len(args) < 2:
+        
+        if args[0] == HELP_FLAG:
+            print_syntax(hashing_doc)
+            return
+
+        unexpected_arg_count()
+        return   
+
+    text, algorithm = args[0], args[1].upper()
+    if not algorithm in hashing:
+        
+        print_error("  [ERROR] %s Algorithms was not found!" % algorithm)
+        print_syntax(hashing_doc)
+        return
+
+    if isinstance(text, str) : text = text.encode()
+    fn = hashing[algorithm]
+    
+    print_result(fn(text).hexdigest())
 
