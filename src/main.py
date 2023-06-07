@@ -10,9 +10,11 @@ Language: Python3.10
 
 from time import sleep, time
 from colorama import Fore as f
-from UtilPackage import (
-	Shell, 
-	Command,
+
+from HedShell import (
+    parse_command, 
+    shell_input, 
+    EMPTY_COMMAND
 	ENCODING,
 	HASHING,
 	EncodingManager, # EncodingManager(Func: callable, s: str | bytes, Op: int)
@@ -21,22 +23,6 @@ from UtilPackage import (
 	Hasher # Hasher(HashingFunc: callable, s: str | bytes) -> str: 
 )
 
-DOC = f"""{f.YELLOW}
-
-	Author: Hossin azmoud (Moody0101)
-	Date: 10/18/2022
-	LICENCE: MIT
-	Language: {f.CYAN}Python3.10 {f.YELLOW}
-	Descripion: A tool to hash, encode, decode text.
-	command: hash, encode, decode, help, exit
-	Usage: 
-		To encode/Decode:
-			Encode/Decode <Text> <Algorithm>
-			Encode/Decode only for help.
-		To hash:
-			Hash <Text> <Algorithm>
-			Hash only for help.
-"""
 
 class Interface:
 	""" An interface that handles user interactions with the shell program """
@@ -115,83 +101,36 @@ class Interface:
 
 		return Hasher(HASHING[HasherName.upper().strip()], Text)
 
-	def showFuncs(self):
-		
-		if self.Tool:
-			for i in CONFIG[self.Tool].keys():
-				print("  ", i)
 
+def execute(command: Command) -> None:
+    """ Executes the Command. """
+    
+    if command.CMD in self.DefaultCommands.keys():
+        
+        if len(command.argv) > 0:
+            print(self.Commands[command.CMD](*command.argv))
+        else:
+            print(self.DefaultCommands[command.CMD]())
+    elif command.CMD in self.Commands.keys():
+        if len(command.argv) > 0:
+            print(self.Commands[command.CMD](*command.argv))
+        else:
+            print(self.Commands[command.CMD]())
 
-	def SetText(self, Text = None): 
-		self.text = Text
-
-	def Exit(self) -> None:
-		
-		for i in ['.', '..', '...']:
-			print(f"  Exiting{i}", end="\r")
-			sleep(1)
-		exit(0)
-
-	def Help(self):
-		return """
-
-	To encode/Decode:
-		Encode/Decode <Text> <Algorithm>
-		Encode/Decode only for help.
-	To hash:
-		Hash <Text> <Algorithm>
-		Hash only for help.
-
-		"""
-
-	def execute(self, command: Command) -> None:
-		"""  """
-		if command.CMD in self.DefaultCommands.keys():
-			if len(command.argv) > 0:
-				print(self.Commands[command.CMD](*command.argv))
-			else:
-				print(self.DefaultCommands[command.CMD]())
-		elif command.CMD in self.Commands.keys():
-			if len(command.argv) > 0:
-				print(self.Commands[command.CMD](*command.argv))
-			else:
-				print(self.Commands[command.CMD]())
-		
-
-
-
-
-	def run(self) -> None:
-		print()
-		print(DOC)
-		Interact = True
-		while Interact:
-			self.command = self.shell.shellInput()
-			if self.command:
-				self.execute(self.command)
-			else:
-				pass
+def run() -> None:
+    while True:
+        command = shell_input()
+        if command != EMPTY_COMMAND: self.execute(self.command)
+        execute_command(command)
 
 def main():
-	Interface_ = Interface()
+    print()
+	print(DOC)
+
+    Interface_ = Interface()
 	Interface_.run()
 
 
 if __name__ == '__main__':
 	main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
