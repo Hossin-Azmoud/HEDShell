@@ -29,8 +29,8 @@ Commands = {}
 
 def _reg_command(name, fn: callable) -> None: Commands[name] = fn
 def shell_parse_command(cmd: str) -> Command: 
-    """ Parses a command and returns the command and its args. """    
     
+    """ Parses a command and returns the command and its args. """    
     cmd = cmd.strip() # Clears the spaces.
 
     if len(cmd) == 0: return EMPTY_COMMAND
@@ -201,7 +201,12 @@ def load_commands(args: list[str]):
         print_error("  [ERROR] %s does not exist" % file)
         return
         
-    lines = file.read_text().split("\n")
+    lines = [
+        i 
+        for i in file.read_text().split("\n") 
+        if (i.strip() and i.strip()[0]) != "#"
+    ]
+
     if len(lines) == 0:
         print_info("EMPTY COMMAND FILE.")
         return
@@ -210,9 +215,9 @@ def load_commands(args: list[str]):
     all_      = len(lines)
     proccessed = 0
 
-    for command in lines:
+    for command in lines: 
         print_info(f"executing command: { command }  {proccessed}/{all_}")
-        c = shell_parse_command(command)
+        c = shell_parse_command(command)       
         execute_command(c)
         proccessed += 1
 
