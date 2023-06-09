@@ -5,10 +5,9 @@ LICENCE: MIT
 Language: Python3.10
 """
 
-from time import sleep, time
-from HedShell import run 
+from HedShell import run
 
-def main(): 
+def main():
     run()
 
 if __name__ == '__main__':
