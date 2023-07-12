@@ -39,6 +39,18 @@ def main():
     print(data)
     print(token)
 
+def fernet_encrypt(args: list[str]):
+    # encrypt fernet "data..." "password"
+
+def fernet_decrypt(args: list[str]):
+    # decrypt fernet "encypted data in base64..." "password"
+
+def fernet_encryptf(args: list[str]):
+    # fencrypt fernet "encypted data in base64..." "password"
+
+def fernet_decryptf(args: list[str]):
+    # fdecrypt fernet "encypted data in base64..." "password"
+
 
 if __name__ == '__main__':
     main()

@@ -14,7 +14,6 @@ HELP = """
         Hash only for help.
 
 """
-
 HED_SHELL_DOC = f"""{WHITE}
     Author: Hossin azmoud (Moody0101)
     Date: 10/18/2022
