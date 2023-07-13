@@ -163,6 +163,9 @@ db/
 ./db
 /db
 
-# my data
-*.enc
-salt.bin
+
+
+
+
+
+
