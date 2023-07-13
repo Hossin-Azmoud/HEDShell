@@ -1,3 +1,4 @@
+from os import urandom
 from time import sleep
 from .colors import (
     RESET,
@@ -14,7 +15,10 @@ from .algorithms import (
     hashing,
     encoding
 )
-
+from base64 import urlsafe_b64encode
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from .documentation import HELP, HED_SHELL_DOC 
 from .constants import (
     EMPTY_COMMAND,
@@ -22,9 +26,134 @@ from .constants import (
     HELP_FLAG
 )
 
+console_lock         = False
+SALT_PATH            = "salt.bin"
 Command              = type[str, list[str]] # str => command; list[str] => arguments.
 unexpected_arg_count = (lambda : print_error("unexpected number of arguments. please try again with the right amount."))
 Commands = {}
+
+DQUOTE   = "\""
+SQUOTE   = "\'"
+
+
+def lock_console():
+    console_lock = True
+
+def unlock_console():
+    console_lock = False 
+
+def tokenize_cmd(cmd: str) -> list[str] | None:
+    length     = len(cmd)
+    arg_buffer = "" 
+    idx        = 0
+    list_      = []
+    l_size     = 0
+
+    while idx < length:
+        if cmd[idx] == ' ':
+            if len(arg_buffer) > 0:
+                list_.append(arg_buffer)
+                arg_buffer = ""
+                l_size += 1
+
+            idx += 1    
+            continue
+
+        if cmd[idx] == DQUOTE:
+
+            if len(arg_buffer) > 0:
+                print_error("non-closed quote. in idx %i" % idx)
+                return
+
+            idx += 1
+
+            while idx < length:
+                
+                if cmd[idx] == DQUOTE:
+                    break
+
+                arg_buffer += cmd[idx]
+                idx += 1
+
+            if idx == length:
+                print_error("reached the tail of the buffer but closing quote was not found.")
+                return
+
+            if cmd[idx] == DQUOTE:
+                if idx == length - 1:
+                    
+                    if len(arg_buffer) > 0:
+                        list_.append(arg_buffer) 
+                    
+                    arg_buffer = ""
+                    l_size    += 1
+                    idx += 1
+                    continue
+ 
+                if cmd[idx + 1] == ' ':
+                    if len(arg_buffer) > 0:
+                        list_.append(arg_buffer) 
+
+                    arg_buffer = ""
+                    l_size    += 1
+                    idx += 2
+                    continue
+                
+                print_error("miformating of the commands, please check ur input.")
+                return
+
+            print_info("UNREACHEDBALE WAS REACHED! BUG IN THE CODE")
+
+        if cmd[idx] == SQUOTE:
+            if len(arg_buffer) > 0:
+                print_error("non-closed quote. in idx %i" % idx)
+                return
+
+            idx += 1
+            
+            while (idx < length):
+
+                if cmd[idx] == SQUOTE:
+                    break
+                
+                arg_buffer += cmd[idx]
+                idx += 1
+
+            if idx == length:
+                print_error("reached the tail of the buffer but closing quote was not found.")
+                return
+
+            if cmd[idx] == SQUOTE:
+                if idx == length - 1:    
+                    if len(arg_buffer) > 0:
+                        list_.append(arg_buffer) 
+                    
+                    arg_buffer = ""
+                    l_size    += 1
+                    idx += 1
+                    continue
+ 
+                if cmd[idx + 1] == ' ':
+                    if len(arg_buffer) > 0:
+                        list_.append(arg_buffer) 
+
+                    arg_buffer = ""
+                    l_size    += 1
+                    idx += 2
+                    continue
+                
+                print_error("miformating of the commands, please check ur input.")
+                return
+
+            print_info("UNREACHEDBALE WAS REACHED! BUG IN THE CODE")
+
+        arg_buffer += cmd[idx]
+        idx += 1
+    
+    if len(arg_buffer) > 0:
+        list_.append(arg_buffer)
+
+    return list_ 
 
 def _reg_command(name: str, fn: callable) -> None: 
     Commands[name] = fn
@@ -33,14 +162,10 @@ def shell_parse_command(cmd: str) -> Command:
     """ Parses a command and returns the command and its args. """    
     cmd = cmd.strip() # Clears the spaces.
     if len(cmd) == 0: return EMPTY_COMMAND
-    
-    result = [
-        i 
-        for i in cmd.split(' ') 
-        if i # check if it is a valid string.
-    ]
-    
-    if len(result) > 1:    
+    result = tokenize_cmd(cmd)
+    if result == None: return EMPTY_COMMAND
+
+    if len(result) > 1:
         command, args = result[0], result[1:] # named Unpacks for readablity purposes
         return (command.upper(), args)
 
@@ -59,6 +184,15 @@ def exit_shell(_: list[str]) -> None:
     
     exit(0)
 
+def get_salt() -> bytes:
+    f = Path(SALT_PATH)
+
+    if not f.exists():
+        salt = urandom(16)
+        f.write_bytes(salt)
+        return salt
+
+    return f.read_bytes()
 
 def Help(_: list[str]) -> None: print(HELP)
 
@@ -177,24 +311,89 @@ def not_implemented_yet():
     print("THIS FUNCTION IS NOT IMPLEMENTED YET!")
 
 def fernet_encrypt(args: list[str]):
-    # encrypt fernet "data..." "password"
-    not_implemented_yet()
+    # encrypt fernet "data..." "pwd"
+    if len(args) < 2:
+        print_syntax("encrypt <algorithm> <data> <password>")
+        return
+
+    #alg  = args[0] dissmissed for now.
+    data = args[1]
+    
+    if len(args) == 2:
+        pwd = input("please supply a password: ")
+        while len(pwd) < 6:
+            pwd = input("very short, please supply a password (more than 6 chars long.): ")
+    else:
+        pwd = args[2]
+    
+    salt = get_salt()
+    
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=480000,
+    )
+
+    key = urlsafe_b64encode(kdf.derive(pwd.encode()))
+    f = Fernet(key)
+    encrypted = f.encrypt(data.encode())
+
+    if not console_lock:
+        print(encrypted)
+        return
+
+    return encrypted
+
 
 def fernet_decrypt(args: list[str]):
     # decrypt fernet "encypted data in base64..." "password"
-    not_implemented_yet()
+    if len(args) < 2:
+        print_syntax("decrypt <algorithm> <data> <password>")
+        return
+
+    #alg  = args[0] dissmissed for now.
+    data = args[1]
+    
+    if len(args) == 2:
+        pwd = input("please supply a password: ")
+        while len(pwd) < 6:
+            pwd = input("very short, please supply a password (more than 6 chars long.): ")
+    else:
+        pwd = args[2]
+
+    salt = get_salt() 
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=480000,
+    )
+
+    k   = urlsafe_b64encode(kdf.derive(pwd.encode()))
+    f   = Fernet(k)
+    decrypted = (f.decrypt(token))
+
+    if not console_lock:
+        print(decrypted)
+        return
+
+    return decrypted
 
 def fernet_encryptf(args: list[str]):
-    # fencrypt fernet "encypted data in base64..." "password"
+    # fencrypt fernet fname "password" 
+    # lock_console()
+    # encrypted    = fernet_encrypt(args[1:])
+    # lock_console()
     not_implemented_yet()
 
 def fernet_decryptf(args: list[str]):
-    # fdecrypt fernet "encypted data in base64..." "password"
+    # fdecrypt fernet fname "password"
     not_implemented_yet()
 
 def execute_command(command: Command) -> None:
     """ Executes the Command. """
-    
+
     cmd, args = command[0], command[1]
     if not cmd in Commands:
         print_error("Command {} is not recognized.".format(cmd))

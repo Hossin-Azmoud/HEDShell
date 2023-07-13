@@ -18,6 +18,6 @@ def run() -> None:
     print_documentation()
     while True: 
         command = shell_input()
+
         if command != EMPTY_COMMAND: 
             execute_command(command)
-
