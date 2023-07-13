@@ -1,3 +1,4 @@
+from hashlib import algorithms_available
 from os import urandom
 from time import sleep
 from .colors import (
@@ -16,7 +17,7 @@ from .algorithms import (
     encoding
 )
 from base64 import urlsafe_b64encode
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from .documentation import HELP, HED_SHELL_DOC 
@@ -26,21 +27,12 @@ from .constants import (
     HELP_FLAG
 )
 
-console_lock         = False
 SALT_PATH            = "salt.bin"
 Command              = type[str, list[str]] # str => command; list[str] => arguments.
 unexpected_arg_count = (lambda : print_error("unexpected number of arguments. please try again with the right amount."))
 Commands = {}
-
 DQUOTE   = "\""
 SQUOTE   = "\'"
-
-
-def lock_console():
-    console_lock = True
-
-def unlock_console():
-    console_lock = False 
 
 def tokenize_cmd(cmd: str) -> list[str] | None:
     length     = len(cmd)
@@ -219,6 +211,13 @@ def print_syntax(t: str) -> None:
     print()
     print(f"  {YELLOW}[SYNTAX]:{RESET}", t)
     print()
+def password_prompt() -> str:
+    pwd = input(f"  {YELLOW}[PASSWORD-CUSTOM-PROMPT] {RESET}please supply a password: ")
+
+    while len(pwd) < 6:
+        pwd = input(f"  {RED} very short, {RESET} please supply a password (more than 6 chars long.): ")
+    
+    return pwd
 
 def hedshell_encode(args: list[str]) -> None: 
         
@@ -267,8 +266,6 @@ def hedshell_decode(args: list[str]) -> None:
     text, algorithm = args[0], args[1].upper()
     
     if not algorithm in encoding:
-        
-        
         print_error("  [ERROR] %s Algorithms was not found!" % algorithm)
         print_syntax(encode_decode_doc[DECODE])
         return
@@ -307,10 +304,15 @@ def hedshell_hash(args: list[str]) -> None:
     print_result(fn(text).hexdigest())
     return fn(text).hexdigest()
 
-def not_implemented_yet():
-    print("THIS FUNCTION IS NOT IMPLEMENTED YET!")
+def not_implemented_yet(): print("THIS FUNCTION IS NOT IMPLEMENTED YET!")
 
-def fernet_encrypt(args: list[str]):
+def fernet_encrypt(args: list[str | bytes | int]):
+ 
+    signal = False
+    if isinstance(args[-1], int):
+        args.pop()
+        signal = True
+
     # encrypt fernet "data..." "pwd"
     if len(args) < 2:
         print_syntax("encrypt <algorithm> <data> <password>")
@@ -318,11 +320,12 @@ def fernet_encrypt(args: list[str]):
 
     #alg  = args[0] dissmissed for now.
     data = args[1]
-    
+
+    if isinstance(data, str):
+        data = data.encode()
+
     if len(args) == 2:
-        pwd = input("please supply a password: ")
-        while len(pwd) < 6:
-            pwd = input("very short, please supply a password (more than 6 chars long.): ")
+        pwd = password_prompt()
     else:
         pwd = args[2]
     
@@ -337,17 +340,18 @@ def fernet_encrypt(args: list[str]):
 
     key = urlsafe_b64encode(kdf.derive(pwd.encode()))
     f = Fernet(key)
-    encrypted = f.encrypt(data.encode())
+    encrypted = f.encrypt(data)
 
-    if not console_lock:
-        print(encrypted)
-        return
+    if signal: return encrypted
+    print_info(encrypted.decode())
 
-    return encrypted
-
-
-def fernet_decrypt(args: list[str]):
+def fernet_decrypt(args: list[str | bytes | int]):
     # decrypt fernet "encypted data in base64..." "password"
+    signal = False
+    if isinstance(args[-1], int):
+        args.pop()
+        signal = True
+
     if len(args) < 2:
         print_syntax("decrypt <algorithm> <data> <password>")
         return
@@ -355,10 +359,11 @@ def fernet_decrypt(args: list[str]):
     #alg  = args[0] dissmissed for now.
     data = args[1]
     
+    if isinstance(data, str):
+        data = data.encode()
+
     if len(args) == 2:
-        pwd = input("please supply a password: ")
-        while len(pwd) < 6:
-            pwd = input("very short, please supply a password (more than 6 chars long.): ")
+        pwd = password_prompt()
     else:
         pwd = args[2]
 
@@ -372,24 +377,73 @@ def fernet_decrypt(args: list[str]):
 
     k   = urlsafe_b64encode(kdf.derive(pwd.encode()))
     f   = Fernet(k)
-    decrypted = (f.decrypt(token))
+ 
+    try:
+        decrypted = (f.decrypt(data))
+        if signal:
+            return decrypted
+        
+        print_info(decrypted.decode())
 
-    if not console_lock:
-        print(decrypted)
-        return
-
-    return decrypted
+    except InvalidToken:
+        print_error("Incorrect password, thus your data will not be decrypted")
 
 def fernet_encryptf(args: list[str]):
     # fencrypt fernet fname "password" 
-    # lock_console()
-    # encrypted    = fernet_encrypt(args[1:])
-    # lock_console()
-    not_implemented_yet()
+    if len(args) < 2:
+        print_syntax("fencrypt <algorithm> filename \"password\"")
+        return
+    
+    algorithm = args[0]
+    file      = Path(args[1])
+
+    if not file.exists():
+        print_error(f"{ file.name } does not seem to exist")
+        return
+
+    encrypted    = fernet_encrypt([
+        algorithm,
+        file.read_bytes(),
+        *(args[2:]),
+        0 
+    ])
+
+    out_file = Path(f"{ file.name }.enc")
+    if out_file.exists():
+        ask = input(f"another file was found with the same name ({ out_file.name }) would u like to continue (Y/N)")
+        if (ask.strip().upper()) != 'Y':
+            return
+
+    out_file.write_bytes(encrypted)
 
 def fernet_decryptf(args: list[str]):
     # fdecrypt fernet fname "password"
-    not_implemented_yet()
+    if len(args) < 2:
+        print_syntax("fdecrypt <algorithm> filename \"password\"")
+        return
+    
+    algorithm = args[0]
+    file      = Path(args[1])
+    
+    if not file.exists():
+        print_error(f"{ file.name } does not seem to exist")
+        return
+
+    encrypted    = fernet_decrypt([
+        algorithm,
+        file.read_bytes(),
+        *(args[2:]),
+        0
+    ])
+
+
+    out_file = Path(file.name.replace(".enc", ""))
+    if out_file.exists():
+        ask = input(f"another file was found with the same name ({ out_file.name }) would u like to continue (Y/N)")
+        if (ask.strip().upper()) != 'Y':
+            return
+
+    out_file.write_bytes(encrypted)
 
 def execute_command(command: Command) -> None:
     """ Executes the Command. """
@@ -462,16 +516,38 @@ def digest_file(args: list[str]):
 
         print_result(f"WROTE TO { fn }")
 
+def print_cmds(_: list[str]):
+    cmds = [
+        "EXIT",     
+        "HELP",     
+        "ENCODE",   
+        "DECODE",   
+        "HASH",     
+        "LOAD",     
+        "DIGEST",   
+        "FDECRYPT", 
+        "FENCRYPT ",
+        "ENCRYPT",  
+        "DECRYPT",  
+        "COMMANDS"
+    ]
+
+    for i, command in enumerate(cmds):
+        print("  #{} {}".format(
+            i,
+            command
+        ))
+
 # ADD Commands.
-_reg_command("EXIT",   exit_shell)
-_reg_command("HELP",   Help) 
-_reg_command("ENCODE", hedshell_encode) 
-_reg_command("DECODE", hedshell_decode) 
-_reg_command("HASH",   hedshell_hash) 
-_reg_command("LOAD",   load_commands)
-_reg_command("DIGEST", digest_file)
-_reg_command("FDECRYPT", fernet_decryptf)
-_reg_command("FENCRYPT ", fernet_encryptf) 
+_reg_command("EXIT",      exit_shell)
+_reg_command("HELP",      Help) 
+_reg_command("ENCODE",    hedshell_encode) 
+_reg_command("DECODE",    hedshell_decode) 
+_reg_command("HASH",      hedshell_hash) 
+_reg_command("LOAD",      load_commands)
+_reg_command("DIGEST",    digest_file)
+_reg_command("FDECRYPT",  fernet_decryptf)
+_reg_command("FENCRYPT", fernet_encryptf) 
 _reg_command("ENCRYPT",   fernet_encrypt) 
 _reg_command("DECRYPT",   fernet_decrypt)
-
+_reg_command("COMMANDS",  print_cmds)
