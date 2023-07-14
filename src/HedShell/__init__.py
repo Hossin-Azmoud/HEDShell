@@ -2,11 +2,11 @@ from .core import (
     shell_input, 
     execute_command,
     EMPTY_COMMAND, 
-    print_documentation,
     load_commands
 )
-
+from .loggers import print_documentation
 from sys import argv 
+
 
 def run() -> None:
     """ Code that runs the shell. """

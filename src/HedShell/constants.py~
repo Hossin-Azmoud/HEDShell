@@ -26,4 +26,10 @@ CMDS = [
     "COMMANDS"
 ]
 
+def print_cmds(_: list[str]):
+    for i, command in enumerate(CMDS):
+        print("  #{} {}".format(
+            i,
+            command
+        ))
 

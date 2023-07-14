@@ -1,12 +1,5 @@
-from hashlib import algorithms_available
 from os import urandom
 from time import sleep
-from .colors import (
-    RESET,
-    GREEN,
-    RED,
-    YELLOW
-)
 from pathlib import Path
 from .algorithms import (
     hashing_doc,
@@ -16,145 +9,49 @@ from .algorithms import (
     hashing,
     encoding
 )
+
+from .loggers import (
+    print_documentation,
+    print_cmds,
+    print_info,
+    print_error,
+    print_Help,
+    print_syntax,
+    print_result,
+    RESET,
+    RED,
+    YELLOW
+)
+
 from base64 import urlsafe_b64encode
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from .documentation import HELP, HED_SHELL_DOC 
 from .constants import (
     EMPTY_COMMAND,
     HEADER,    
-    HELP_FLAG
+    HELP_FLAG,
+    SALT_PATH 
 )
+from .parsing import tokenize_cmd
+from .types import Command
+from collections.abc import Callable
 
-SALT_PATH            = "salt.bin"
-Command              = type[str, list[str]] # str => command; list[str] => arguments.
 unexpected_arg_count = (lambda : print_error("unexpected number of arguments. please try again with the right amount."))
 Commands = {}
-DQUOTE   = "\""
-SQUOTE   = "\'"
 
-def tokenize_cmd(cmd: str) -> list[str] | None:
-    length     = len(cmd)
-    arg_buffer = "" 
-    idx        = 0
-    list_      = []
-    l_size     = 0
-
-    while idx < length:
-        if cmd[idx] == ' ':
-            if len(arg_buffer) > 0:
-                list_.append(arg_buffer)
-                arg_buffer = ""
-                l_size += 1
-
-            idx += 1    
-            continue
-
-        if cmd[idx] == DQUOTE:
-
-            if len(arg_buffer) > 0:
-                print_error("non-closed quote. in idx %i" % idx)
-                return
-
-            idx += 1
-
-            while idx < length:
-                
-                if cmd[idx] == DQUOTE:
-                    break
-
-                arg_buffer += cmd[idx]
-                idx += 1
-
-            if idx == length:
-                print_error("reached the tail of the buffer but closing quote was not found.")
-                return
-
-            if cmd[idx] == DQUOTE:
-                if idx == length - 1:
-                    
-                    if len(arg_buffer) > 0:
-                        list_.append(arg_buffer) 
-                    
-                    arg_buffer = ""
-                    l_size    += 1
-                    idx += 1
-                    continue
- 
-                if cmd[idx + 1] == ' ':
-                    if len(arg_buffer) > 0:
-                        list_.append(arg_buffer) 
-
-                    arg_buffer = ""
-                    l_size    += 1
-                    idx += 2
-                    continue
-                
-                print_error("miformating of the commands, please check ur input.")
-                return
-
-            print_info("UNREACHEDBALE WAS REACHED! BUG IN THE CODE")
-
-        if cmd[idx] == SQUOTE:
-            if len(arg_buffer) > 0:
-                print_error("non-closed quote. in idx %i" % idx)
-                return
-
-            idx += 1
-            
-            while (idx < length):
-
-                if cmd[idx] == SQUOTE:
-                    break
-                
-                arg_buffer += cmd[idx]
-                idx += 1
-
-            if idx == length:
-                print_error("reached the tail of the buffer but closing quote was not found.")
-                return
-
-            if cmd[idx] == SQUOTE:
-                if idx == length - 1:    
-                    if len(arg_buffer) > 0:
-                        list_.append(arg_buffer) 
-                    
-                    arg_buffer = ""
-                    l_size    += 1
-                    idx += 1
-                    continue
- 
-                if cmd[idx + 1] == ' ':
-                    if len(arg_buffer) > 0:
-                        list_.append(arg_buffer) 
-
-                    arg_buffer = ""
-                    l_size    += 1
-                    idx += 2
-                    continue
-                
-                print_error("miformating of the commands, please check ur input.")
-                return
-
-            print_info("UNREACHEDBALE WAS REACHED! BUG IN THE CODE")
-
-        arg_buffer += cmd[idx]
-        idx += 1
-    
-    if len(arg_buffer) > 0:
-        list_.append(arg_buffer)
-
-    return list_ 
-
-def _reg_command(name: str, fn: callable) -> None: 
+def _reg_command(name: str, fn: Callable) -> None: 
     Commands[name] = fn
 
 def shell_parse_command(cmd: str) -> Command: 
     """ Parses a command and returns the command and its args. """    
     cmd = cmd.strip() # Clears the spaces.
     if len(cmd) == 0: return EMPTY_COMMAND
-    result = tokenize_cmd(cmd)
+    result = tokenize_cmd(cmd, 
+        print_info, 
+        print_error
+    )
+
     if result == None: return EMPTY_COMMAND
 
     if len(result) > 1:
@@ -186,31 +83,6 @@ def get_salt() -> bytes:
 
     return f.read_bytes()
 
-def Help(_: list[str]) -> None: print(HELP)
-
-def print_result(s: str) -> None:
-    print()
-    print(f"  {GREEN}[RESULT]:{RESET}", s)
-    print()
-
-def print_info(s: str) -> None:
-    print()
-    print(f"  {GREEN}[!][INFO] {RESET}", s)
-    print()
-
-def print_error(e: str) -> None:
-    print()
-    print(f"  {RED}[ERROR]:{RESET}", e)
-    print()
-
-def print_documentation():
-    print()
-    print(HED_SHELL_DOC)
-
-def print_syntax(t: str) -> None:
-    print()
-    print(f"  {YELLOW}[SYNTAX]:{RESET}", t)
-    print()
 def password_prompt() -> str:
     pwd = input(f"  {YELLOW}[PASSWORD-CUSTOM-PROMPT] {RESET}please supply a password: ")
 
@@ -284,7 +156,6 @@ def hedshell_hash(args: list[str]) -> None:
         return
 
     if len(args) < 2:
-        
         if args[0] == HELP_FLAG:
             print_syntax(hashing_doc)
             return
@@ -304,8 +175,6 @@ def hedshell_hash(args: list[str]) -> None:
     print_result(fn(text).hexdigest())
     return fn(text).hexdigest()
 
-def not_implemented_yet(): print("THIS FUNCTION IS NOT IMPLEMENTED YET!")
-
 def fernet_encrypt(args: list[str | bytes | int]):
  
     signal = False
@@ -318,7 +187,7 @@ def fernet_encrypt(args: list[str | bytes | int]):
         print_syntax("encrypt <algorithm> <data> <password>")
         return
 
-    #alg  = args[0] dissmissed for now.
+    # alg  = args[0] dissmissed for now.
     data = args[1]
 
     if isinstance(data, str):
@@ -516,31 +385,9 @@ def digest_file(args: list[str]):
 
         print_result(f"WROTE TO { fn }")
 
-def print_cmds(_: list[str]):
-    cmds = [
-        "EXIT",     
-        "HELP",     
-        "ENCODE",   
-        "DECODE",   
-        "HASH",     
-        "LOAD",     
-        "DIGEST",   
-        "FDECRYPT", 
-        "FENCRYPT ",
-        "ENCRYPT",  
-        "DECRYPT",  
-        "COMMANDS"
-    ]
-
-    for i, command in enumerate(cmds):
-        print("  #{} {}".format(
-            i,
-            command
-        ))
-
 # ADD Commands.
 _reg_command("EXIT",      exit_shell)
-_reg_command("HELP",      Help) 
+_reg_command("HELP",      print_Help) 
 _reg_command("ENCODE",    hedshell_encode) 
 _reg_command("DECODE",    hedshell_decode) 
 _reg_command("HASH",      hedshell_hash) 
